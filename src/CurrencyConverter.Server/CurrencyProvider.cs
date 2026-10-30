@@ -11,6 +11,19 @@ public class CurrencyProvider
         this.httpClient = httpClient;
     }
 
+    public async Task<ExchangeRate> GetRateAsync(string from, string to, CancellationToken cancellationToken)
+    {
+        string url = "rate/" + Uri.EscapeDataString(from) + "/" + Uri.EscapeDataString(to);
+        ExchangeRate? exchangeRate = await this.httpClient.GetFromJsonAsync<ExchangeRate>(url, cancellationToken);
+
+        if (exchangeRate == null || exchangeRate.Rate <= 0 || exchangeRate.Date == DateOnly.MinValue)
+        {
+            throw new JsonException("The currency provider returned an invalid exchange rate.");
+        }
+
+        return exchangeRate;
+    }
+
     public async Task<List<string>> GetCurrenciesAsync(CancellationToken cancellationToken)
     {
         JsonElement response = await this.httpClient.GetFromJsonAsync<JsonElement>("currencies", cancellationToken);

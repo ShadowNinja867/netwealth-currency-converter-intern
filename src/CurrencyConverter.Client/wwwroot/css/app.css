@@ -69,6 +69,7 @@ h1 { margin: 12px 0; font-size: clamp(2rem, 5vw, 2.8rem); line-height: 1.2; lett
 .amount-field input { appearance: textfield; }
 .amount-field input::-webkit-inner-spin-button, .amount-field input::-webkit-outer-spin-button { appearance: none; margin: 0; }
 .amount-field input::placeholder { color: #738681; }
+.conversion-result { overflow-wrap: anywhere; }
 .row-direction { margin: 8px 0; text-align: center; font-size: 1.25rem; color: #326b60; }
 .swap-button {
     display: inline-flex;

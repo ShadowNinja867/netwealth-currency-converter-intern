@@ -1,6 +1,7 @@
 @page "/"
 @using CurrencyConverter.Client.Components
 @using System.Text.Json
+@using System.Globalization
 @inject HttpClient Http
 
 <PageTitle>Currency Converter</PageTitle>
@@ -30,19 +31,19 @@
                     <span class="field-label">From @fromCurrency</span>
                     <CurrencySelector Id="from-currencies" Label="Source currency" Currencies="currencies"
                                       Value="@fromCurrency" ValueChanged="ChangeFromCurrency"
-                                      Disabled="@(loadingCurrencies || currencies.Count == 0)" />
+                                      Disabled="@(loadingCurrencies || converting || currencies.Count == 0)" />
                 </div>
                 <div class="amount-field">
                     <label for="amount">Amount</label>
-                    <input id="amount" type="text" @bind="amountText" @bind:after="ClearMessage"
+                    <input id="amount" type="text" @bind="amountText" @bind:event="oninput" @bind:after="ClearMessage"
                            placeholder="0.00" inputmode="decimal"
-                           aria-describedby="form-message" required />
+                           aria-describedby="form-message" disabled="@converting" required />
                 </div>
             </div>
 
             <div class="row-direction">
                 <button type="button" class="swap-button" @onclick="SwapCurrencies"
-                        disabled="@(loadingCurrencies || currencies.Count == 0)"
+                        disabled="@(loadingCurrencies || converting || currencies.Count == 0)"
                         aria-label="Swap source and destination currencies" title="Swap currencies">
                     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
                          stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -57,16 +58,16 @@
                     <span class="field-label">To @toCurrency</span>
                     <CurrencySelector Id="to-currencies" Label="Destination currency" Currencies="currencies"
                                       Value="@toCurrency" ValueChanged="ChangeToCurrency"
-                                      Disabled="@(loadingCurrencies || currencies.Count == 0)" />
+                                      Disabled="@(loadingCurrencies || converting || currencies.Count == 0)" />
                 </div>
                 <div class="amount-field">
                     <label for="result">Converted amount</label>
-                    <output id="result" class="conversion-result" aria-live="polite">—</output>
+                    <output id="result" class="conversion-result" aria-live="polite">@(convertedAmount.HasValue ? convertedAmount.Value.ToString() : "—")</output>
                 </div>
             </div>
 
-            <button class="convert-button" type="submit" disabled="@(loadingCurrencies || currencies.Count == 0)">
-                Convert
+            <button class="convert-button" type="submit" disabled="@(loadingCurrencies || converting || currencies.Count == 0)">
+                @(converting ? "Converting…" : "Convert")
             </button>
             <p id="form-message" class="form-message" role="status" aria-live="polite">@formMessage</p>
         </form>
@@ -82,6 +83,8 @@
     private string toCurrency = "";
     private string amountText = "";
     private string formMessage = "";
+    private bool converting;
+    private decimal? convertedAmount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -134,8 +137,14 @@
         ClearMessage();
     }
 
-    private void HandleSubmit()
+    private async Task HandleSubmit()
     {
+        if (converting || loadingCurrencies || currencies.Count == 0)
+        {
+            return;
+        }
+
+        ClearMessage();
         decimal amount;
         if (!decimal.TryParse(amountText, out amount) || amount < 0)
         {
@@ -147,7 +156,51 @@
             formMessage = "Select both currencies.";
             return;
         }
-        formMessage = "Conversion is not available yet";
+        converting = true;
+        try
+        {
+            string url = "api/convert?from=" + Uri.EscapeDataString(fromCurrency)
+                + "&to=" + Uri.EscapeDataString(toCurrency)
+                + "&amount=" + Uri.EscapeDataString(amount.ToString(CultureInfo.InvariantCulture));
+
+            using (HttpResponseMessage response = await Http.GetAsync(url))
+            {
+                ConversionResponse? result = await response.Content.ReadFromJsonAsync<ConversionResponse>();
+                if (response.IsSuccessStatusCode)
+                {
+                    if (result == null || !result.ConvertedAmount.HasValue)
+                    {
+                        formMessage = "The conversion result could not be read. Please try again.";
+                        return;
+                    }
+                    convertedAmount = result.ConvertedAmount;
+                }
+                else
+                {
+                    formMessage = "Conversion failed. Please try again.";
+                    if (result != null && !string.IsNullOrWhiteSpace(result.Detail))
+                    {
+                        formMessage = result.Detail;
+                    }
+                }
+            }
+        }
+        catch (HttpRequestException)
+        {
+            formMessage = "Could not reach the server. Please try again.";
+        }
+        catch (TaskCanceledException)
+        {
+            formMessage = "Conversion took too long. Please try again.";
+        }
+        catch (JsonException)
+        {
+            formMessage = "The conversion response could not be read. Please try again.";
+        }
+        finally
+        {
+            converting = false;
+        }
     }
 
     private void SwapCurrencies()
@@ -161,5 +214,6 @@
     private void ClearMessage()
     {
         formMessage = "";
+        convertedAmount = null;
     }
 }
