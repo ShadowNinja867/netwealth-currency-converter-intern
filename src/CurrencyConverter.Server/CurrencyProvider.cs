@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace CurrencyConverter.Server;
 
-public class CurrencyProvider
+public class CurrencyProvider : ICurrencyProvider
 {
     private HttpClient httpClient;
 

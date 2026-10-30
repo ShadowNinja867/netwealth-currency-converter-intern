@@ -3,4 +3,7 @@
     <Project Path="src/CurrencyConverter.Client/CurrencyConverter.Client.csproj" />
     <Project Path="src/CurrencyConverter.Server/CurrencyConverter.Server.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CurrencyConverter.Tests/CurrencyConverter.Tests.csproj" />
+  </Folder>
 </Solution>
