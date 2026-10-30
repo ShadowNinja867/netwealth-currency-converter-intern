@@ -1,7 +1,165 @@
-﻿@page "/"
+@page "/"
+@using CurrencyConverter.Client.Components
+@using System.Text.Json
+@inject HttpClient Http
 
 <PageTitle>Currency Converter</PageTitle>
 
-<h1>Currency Converter</h1>
+<main class="converter-page">
+    <header class="page-heading">
+        <h1>Currency converter</h1>
+        <p>Choose your currencies and enter an amount to get started.</p>
+    </header>
 
-<p>The project is set up. The currency conversion form will go here.</p>
+    <section class="converter-card" aria-label="Currency conversion">
+        @if (loadingCurrencies)
+        {
+            <p class="currency-load-message" role="status">Loading currencies…</p>
+        }
+        @if (currencyError != "")
+        {
+            <div class="currency-load-error" role="alert">
+                <p>@currencyError</p>
+                <button type="button" class="retry-button" @onclick="LoadCurrencies">Retry</button>
+            </div>
+        }
+
+        <form @onsubmit="HandleSubmit" @onsubmit:preventDefault novalidate>
+            <div class="conversion-row">
+                <div class="currency-field">
+                    <span class="field-label">From @fromCurrency</span>
+                    <CurrencySelector Id="from-currencies" Label="Source currency" Currencies="currencies"
+                                      Value="@fromCurrency" ValueChanged="ChangeFromCurrency"
+                                      Disabled="@(loadingCurrencies || currencies.Count == 0)" />
+                </div>
+                <div class="amount-field">
+                    <label for="amount">Amount</label>
+                    <input id="amount" type="text" @bind="amountText" @bind:after="ClearMessage"
+                           placeholder="0.00" inputmode="decimal"
+                           aria-describedby="form-message" required />
+                </div>
+            </div>
+
+            <div class="row-direction">
+                <button type="button" class="swap-button" @onclick="SwapCurrencies"
+                        disabled="@(loadingCurrencies || currencies.Count == 0)"
+                        aria-label="Swap source and destination currencies" title="Swap currencies">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15" />
+                        <path d="M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="conversion-row result-row">
+                <div class="currency-field">
+                    <span class="field-label">To @toCurrency</span>
+                    <CurrencySelector Id="to-currencies" Label="Destination currency" Currencies="currencies"
+                                      Value="@toCurrency" ValueChanged="ChangeToCurrency"
+                                      Disabled="@(loadingCurrencies || currencies.Count == 0)" />
+                </div>
+                <div class="amount-field">
+                    <label for="result">Converted amount</label>
+                    <output id="result" class="conversion-result" aria-live="polite">—</output>
+                </div>
+            </div>
+
+            <button class="convert-button" type="submit" disabled="@(loadingCurrencies || currencies.Count == 0)">
+                Convert
+            </button>
+            <p id="form-message" class="form-message" role="status" aria-live="polite">@formMessage</p>
+        </form>
+    </section>
+
+</main>
+
+@code {
+    private List<string> currencies = new List<string>();
+    private bool loadingCurrencies = true;
+    private string currencyError = "";
+    private string fromCurrency = "";
+    private string toCurrency = "";
+    private string amountText = "";
+    private string formMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCurrencies();
+    }
+
+    private async Task LoadCurrencies()
+    {
+        loadingCurrencies = true;
+        currencyError = "";
+        try
+        {
+            List<string>? response = await Http.GetFromJsonAsync<List<string>>("api/currencies");
+            if (response == null || response.Count == 0)
+            {
+                currencyError = "Currencies could not be loaded. Please try again.";
+            }
+            else
+            {
+                currencies = response;
+            }
+        }
+        catch (HttpRequestException)
+        {
+            currencyError = "Currencies could not be loaded. Please try again.";
+        }
+        catch (TaskCanceledException)
+        {
+            currencyError = "Loading currencies took too long. Please try again.";
+        }
+        catch (JsonException)
+        {
+            currencyError = "Currencies could not be loaded. Please try again.";
+        }
+        finally
+        {
+            loadingCurrencies = false;
+        }
+    }
+
+    private void ChangeFromCurrency(string currency)
+    {
+        fromCurrency = currency;
+        ClearMessage();
+    }
+
+    private void ChangeToCurrency(string currency)
+    {
+        toCurrency = currency;
+        ClearMessage();
+    }
+
+    private void HandleSubmit()
+    {
+        decimal amount;
+        if (!decimal.TryParse(amountText, out amount) || amount < 0)
+        {
+            formMessage = "Enter a valid amount of money.";
+            return;
+        }
+        if (fromCurrency == "" || toCurrency == "")
+        {
+            formMessage = "Select both currencies.";
+            return;
+        }
+        formMessage = "Conversion is not available yet";
+    }
+
+    private void SwapCurrencies()
+    {
+        string previousFromCurrency = fromCurrency;
+        fromCurrency = toCurrency;
+        toCurrency = previousFromCurrency;
+        ClearMessage();
+    }
+
+    private void ClearMessage()
+    {
+        formMessage = "";
+    }
+}

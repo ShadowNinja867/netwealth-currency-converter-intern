@@ -1,0 +1,81 @@
+<button type="button" class="currency-trigger" popovertarget="@Id" disabled="@Disabled"
+        aria-label="@GetButtonLabel()" @onclick="ClearSearch">
+    <span>@(Value == "" ? "Select" : Value)</span>
+    <span class="dropdown-arrow" aria-hidden="true">⌄</span>
+</button>
+
+@* The browser handles opening, outside clicks, Escape, and keyboard focus. *@
+<div id="@Id" popover="auto" class="currency-menu" role="dialog" aria-label="@Label">
+    <div class="currency-menu-heading">
+        <strong>@Label</strong>
+        <button type="button" class="close-menu" popovertarget="@Id" popovertargetaction="hide"
+                aria-label="Close currency selection">×</button>
+    </div>
+    <label class="search-label" for="@(Id + "-search")">Search by currency code</label>
+    <input id="@(Id + "-search")" type="search" placeholder="Search, e.g. GBP"
+           @bind="searchText" @bind:event="oninput" autocomplete="off" autofocus />
+
+    @{ List<string> filteredCurrencies = GetFilteredCurrencies(); }
+    <ul class="currency-options" aria-label="Available currencies">
+        @foreach (string currency in filteredCurrencies)
+        {
+            <li>
+                <button type="button" class="currency-option" aria-pressed="@(currency == Value)"
+                        popovertarget="@Id" popovertargetaction="hide" @onclick="() => SelectCurrency(currency)">
+                    @currency
+                    @if (currency == Value)
+                    {
+                        <span aria-hidden="true">✓</span>
+                    }
+                </button>
+            </li>
+        }
+    </ul>
+    @if (filteredCurrencies.Count == 0)
+    {
+        <p class="no-currencies" role="status">No currencies match your search.</p>
+    }
+</div>
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public List<string> Currencies { get; set; } = new List<string>();
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    private string searchText = "";
+
+    private string GetButtonLabel()
+    {
+        if (Value == "")
+        {
+            return Label + ": select a currency";
+        }
+        return Label + ": " + Value;
+    }
+
+    private void ClearSearch()
+    {
+        searchText = "";
+    }
+
+    private List<string> GetFilteredCurrencies()
+    {
+        List<string> matches = new List<string>();
+        foreach (string currency in Currencies)
+        {
+            if (currency.Contains(searchText.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                matches.Add(currency);
+            }
+        }
+        return matches;
+    }
+
+    private async Task SelectCurrency(string currency)
+    {
+        await ValueChanged.InvokeAsync(currency);
+    }
+}
